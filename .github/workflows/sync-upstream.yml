@@ -1,0 +1,58 @@
+name: Sync upstream main
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout control branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: sync-control
+          persist-credentials: false
+
+      - name: Configure upstream
+        run: |
+          if git remote get-url upstream >/dev/null 2>&1; then
+            git remote remove upstream
+          fi
+          git remote add upstream https://github.com/anthropics/claude-plugins-official.git
+
+      - name: Fetch upstream main
+        run: |
+          git fetch upstream main
+
+      - name: Update local main to match upstream
+        run: |
+          git branch -f main upstream/main
+
+      - name: Push mirrored main to GitHub fork
+        env:
+          GH_TAG_PUSH_TOKEN: ${{ secrets.GH_TAG_PUSH_TOKEN }}
+        run: |
+          if [ -z "$GH_TAG_PUSH_TOKEN" ]; then
+            echo "GH_TAG_PUSH_TOKEN is not set"
+            exit 1
+          fi
+
+          git push "https://jiangshengdev:${GH_TAG_PUSH_TOKEN}@github.com/jiangshengdev/claude-plugins-official.git" +main:main
+
+      - name: Push mirrored main to CNB
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        run: |
+          if [ -z "$CNB_TOKEN" ]; then
+            echo "CNB_TOKEN is not set"
+            exit 1
+          fi
+
+          git push "https://cnb:${CNB_TOKEN}@cnb.cool/jiangshengdev/claude-plugins-official.git" +main:main
